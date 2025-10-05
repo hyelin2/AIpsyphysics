@@ -1,0 +1,19 @@
+{
+  "name": "lucky-headline-jspsych",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@jspsych/plugin-html-keyboard-response": "^2.1.0",
+    "jspsych": "^7.3.3"
+  }
+}

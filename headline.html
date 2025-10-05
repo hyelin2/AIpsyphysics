@@ -1,0 +1,332 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Headline Task (Cue-Controlled + Server Save)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- jsPsych UMD -->
+  <link rel="stylesheet" href="lib/jspsych.css">
+  <script src="lib/jspsych.js"></script>
+  <script src="lib/plugin-html-keyboard-response.js"></script>
+
+  <!-- 데이터(JS에 CSV 내장) -->
+  <script src="data/headline_dataset.js"></script>
+
+  <style>
+    :root { color-scheme: dark; }
+    body { background:#111; color:#eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .title { font-size: 24px; color:#9fe4ff; margin: 0 0 8px; }
+    .headline { font-size: 28px; line-height: 1.35; text-align: center; margin-top: 14vh; }
+    .keys { text-align:center; margin-top:16px; color:#aaa; }
+    .center { text-align:center; }
+    .btn { display:inline-block; padding:10px 14px; border:1px solid #666; border-radius:10px; }
+    .small { font-size:13px; color:#aaa; }
+
+    #hud-trials {
+      position: fixed; right: 14px; bottom: 14px;
+      font-size: 12px; color: #9b9b9b; background: rgba(255,255,255,0.03);
+      padding: 6px 10px; border: 1px solid #3a3a3a; border-radius: 8px; z-index: 20;
+      user-select: none; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Headline Task</div>
+    <div id="jspsych"></div>
+  </div>
+  <div id="hud-trials">남은 시도: 0 / 0</div>
+
+  <script>
+    // =============== 저장 서버 설정 ===============
+    // Apps Script 웹앱 URL (배포 후 얻은 URL로 교체)
+    const SAVE_ENDPOINT_BASE = 'https://script.google.com/macros/s/AKfycbwfMpOM130lgHBL_RbEtIL3ADe8upsce4fodeTl-DYMPaxN1suF8vL1UqVCyHJLu9Lg/exec';
+    // URL 파라미터에도 task 붙여서 e.parameter.task 대응
+    const SAVE_ENDPOINT = SAVE_ENDPOINT_BASE + '?task=headline';
+
+    // 참가자 ID 생성/보관
+    function getPID() {
+      const fromQS = new URLSearchParams(location.search).get('pid');
+      if (fromQS) return fromQS;
+      const cached = localStorage.getItem('headline_pid');
+      if (cached) return cached;
+      const gen = 'H' + Math.random().toString(36).slice(2,10);
+      localStorage.setItem('headline_pid', gen);
+      return gen;
+    }
+    const PARTICIPANT_ID = getPID();
+
+    // =============== 실험 파라미터 ===============
+    // MODE = 1  → amb: pos/neg, clear: neutral
+    // MODE = 2  → amb: pos/neg/neutral 균등, clear: neutral
+    const MODE = 2;            // 1 또는 2
+    const LEFT_KEY  = 'arrowleft';
+    const RIGHT_KEY = 'arrowright';
+    const CUE_MS = 700;
+    const ITI_MS = 300;
+
+    // =============== CSV 파서 ===============
+    function parseCSVStrict(csvText) {
+      const rows = [];
+      let i = 0, field = '', row = [], inQuotes = false;
+      const pushField = () => { row.push(field); field = ''; };
+      const pushRow = () => { rows.push(row); row = []; };
+      while (i < csvText.length) {
+        const c = csvText[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (csvText[i+1] === '"') { field += '"'; i += 2; continue; }
+            inQuotes = false; i++; continue;
+          } else { field += c; i++; continue; }
+        } else {
+          if (c === '"') { inQuotes = true; i++; continue; }
+          if (c === ',') { pushField(); i++; continue; }
+          if (c === '\n') { pushField(); pushRow(); i++; continue; }
+          if (c === '\r') { if (csvText[i+1] === '\n') { pushField(); pushRow(); i += 2; continue; } else { pushField(); pushRow(); i++; continue; } }
+          field += c; i++; continue;
+        }
+      }
+      if (field.length > 0 || row.length > 0) { pushField(); pushRow(); }
+      if (!rows.length) return [];
+      const header = rows[0].map(h => h.trim());
+      const dataRows = rows.slice(1).filter(r => r.length && r.some(x => (x||'').trim().length>0));
+      return dataRows.map(cells => {
+        const obj = {};
+        for (let k=0; k<header.length; k++) obj[header[k]] = (cells[k] ?? '').trim();
+        return obj;
+      });
+    }
+
+    // =============== HUD ===============
+    const $hud = document.getElementById('hud-trials');
+    let TOTAL_TRIALS = 0;
+    function updateHUD(doneCount) {
+      const remaining = TOTAL_TRIALS - doneCount;
+      $hud.textContent = `남은 시도: ${remaining} / ${TOTAL_TRIALS}`;
+    }
+
+    // =============== 화면 템플릿 ===============
+    const headlineHTML = (s) => `
+      <div class="headline">${s}</div>
+      <div class="keys">빠르게 분류: <b>← 부정</b> / <b>→ 긍정</b></div>
+    `;
+    function cueHTML(kind) {
+      if (kind === 'pos' || kind === 'neg') {
+        return `
+          <div class="center" style="margin-top:22vh;">
+            <div class="small" style="color:#aaa;">사전 정보</div>
+            <div style="font-size:30px; margin-top:8px;">
+              사람들이 보통 이 메시지를 <b>${kind==='pos'?'긍정적':'부정적'}</b>으로 본다고 합니다.
+            </div>
+          </div>
+        `;
+      }
+      return `
+        <div class="center" style="margin-top:22vh;">
+          <div class="small" style="color:#aaa;">안내</div>
+          <div style="font-size:30px; margin-top:8px;">잠시 후 문장이 나타납니다.</div>
+        </div>
+      `;
+    }
+
+    // =============== jsPsych ===============
+    const jsPsych = initJsPsych({
+      display_element: 'jspsych',
+      on_finish: async () => {
+        // 서버 업로드 + 로컬 백업
+        await saveDataToServer();
+        try { jsPsych.data.get().localSave('csv', 'headline_results.csv'); } catch(e) {}
+      }
+    });
+    jsPsych.data.addProperties({
+      task: 'headline',
+      key_left: LEFT_KEY,
+      key_right: RIGHT_KEY,
+      mode: MODE,
+      participant_id: PARTICIPANT_ID,
+      start_time: new Date().toISOString()
+    });
+
+    // =============== 데이터 로드 ===============
+    if (!window.HEADLINE_DATA || typeof window.HEADLINE_DATA !== 'string') {
+      document.getElementById('jspsych').innerHTML =
+        '<div style="margin-top:20vh;text-align:center;color:#f88;">데이터 파일(data/headline_dataset.js)을 불러오지 못했습니다.</div>';
+      throw new Error('HEADLINE_DATA not found');
+    }
+    const DATA_ROWS = parseCSVStrict(window.HEADLINE_DATA).map(r => ({
+      id: (r.id || '').trim(),
+      text: (r.text || '').trim(),
+      type: (r.type || '').trim(),     // 'pos'|'neg'|'amb'
+      topic: (r.topic || '').trim(),
+      target_valence: (r.target_valence || '').trim()
+    })).filter(r => r.text.length > 0);
+
+    // =============== cue 배정(MODE 1/2) ===============
+    function assignCueType(stimType) {
+      if (stimType === 'amb') {
+        if (MODE === 1) return Math.random() < 0.5 ? 'pos' : 'neg';
+        const opts = ['pos','neg','neutral']; // MODE 2
+        return opts[Math.floor(Math.random()*opts.length)];
+      }
+      return 'neutral'; // 명확 문장은 항상 중립 큐
+    }
+
+    // =============== 타임라인 ===============
+    function buildTimeline(rows) {
+      const shuffled = jsPsych.randomization.shuffle(rows);
+      const timeline = [];
+
+      timeline.push({
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+          <div class="center" style="margin-top:14vh;">
+            <div style="font-size:28px; margin-bottom:10px;">과제 설명</div>
+            <div>화면에 제시되는 문장을 보고, 직관적으로 <b>부정/긍정</b>을 분류하세요.</div>
+            <div class="small" style="margin-top:8px;">← 부정 / → 긍정 (가능한 빠르게!)</div>
+            <div class="small" style="margin-top:8px;">모든 문장 전에 간단한 안내 화면이 제시됩니다.</div>
+            <div style="margin-top:18px;"><span class="btn">아무 키나 눌러 시작</span></div>
+          </div>
+        `,
+        on_finish: () => updateHUD(0)
+      });
+
+      shuffled.forEach((item, idx) => {
+        const stimType = item.type;
+        const cueType  = assignCueType(stimType);
+
+        // CUE
+        timeline.push({
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: cueHTML(cueType),
+          choices: "NO_KEYS",
+          trial_duration: 700,
+          data: { phase:'cue', trial_index_zero: idx, cue_type: cueType, stimulus_type: stimType },
+          on_start: () => updateHUD(idx)
+        });
+
+        // STIMULUS + RESPONSE
+        timeline.push({
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: headlineHTML(item.text),
+          choices: [LEFT_KEY, RIGHT_KEY],
+          data: {
+            phase: 'choice',
+            trial_index_zero: idx,
+            id: item.id,
+            headline_text: item.text,
+            stimulus_type: stimType,
+            topic: item.topic,
+            target_valence: item.target_valence,
+            cue_type: cueType
+          },
+          on_finish: (d) => {
+            // 원본 키와 소문자 키 둘 다 확보
+            const keyRaw = d.response ?? '';
+            const key = String(keyRaw).toLowerCase();
+      
+            d.choice_key   = keyRaw;                       // 예: 'ArrowLeft' 그대로 저장
+            d.choice_label = (key === LEFT_KEY) ? 'neg'    // 소문자로 비교
+                                                : 'pos';
+            d.correct = (stimType === 'pos' || stimType === 'neg')
+              ? (d.choice_label === stimType ? 1 : 0)
+              : null;
+            d.timestamp = new Date().toISOString();
+            // d.rt는 자동(ms)
+          }
+        });
+
+        // ITI
+        timeline.push({
+          type: jsPsychHtmlKeyboardResponse,
+          choices: "NO_KEYS",
+          trial_duration: 300,
+          stimulus: () => "",
+          data: { phase:'iti', trial_index_zero: idx }
+        });
+      });
+
+      // 종료 화면
+      timeline.push({
+        type: jsPsychHtmlKeyboardResponse,
+        choices: [' '],
+        stimulus: () => `
+          <div class="center" style="margin-top:14vh;">
+            <div style="font-size:28px; margin-bottom:10px;">끝!</div>
+            <div class="small" style="margin-top:8px;">스페이스바를 누르면 결과 저장이 시작됩니다.</div>
+          </div>
+        `,
+        on_finish: async () => {
+          updateHUD(TOTAL_TRIALS);
+          await saveDataToServer();
+          try { jsPsych.data.get().localSave('csv', 'headline_results.csv'); } catch(_) {}
+        }
+      });
+
+      return timeline;
+    }
+
+    // =============== 서버 전송 ===============
+    async function saveDataToServer() {
+        const rows = jsPsych.data.get().filter({phase:'choice'}).values().map(d => ({
+          trial_index_zero: d.trial_index_zero ?? null,
+          id: d.id ?? '',
+          headline_text: d.headline_text ?? '',
+          stimulus_type: d.stimulus_type ?? '',
+          topic: d.topic ?? '',
+          target_valence: d.target_valence ?? '',
+          cue_type: d.cue_type ?? '',
+          choice_label: d.choice_label ?? '',
+          choice_key: d.choice_key ?? '',     
+          rt: d.rt ?? null,
+          correct: d.correct
+        }));
+      
+        const payload = {
+          task: 'headline',
+          participant_id: PARTICIPANT_ID,
+          meta: { mode: MODE, ua: navigator.userAgent },
+          rows
+        };
+      
+        try {
+          await fetch(SAVE_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' }, // ★ 프리플라이트 회피
+            body: JSON.stringify(payload),
+            mode: 'no-cors',                            // ★ 응답은 못 읽지만 전송은 됨
+            keepalive: true
+          });
+          return true;
+        } catch (e) {
+          localStorage.setItem('headline_pending_upload', JSON.stringify(payload)); // 실패시 대기열
+          return false;
+        }
+      }
+      
+
+    // 숨은 대기열 재전송
+    (async () => {
+      const q = localStorage.getItem('headline_pending_upload');
+      if (q) {
+        try {
+          await fetch(SAVE_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body:q, mode:'cors' });
+          localStorage.removeItem('headline_pending_upload');
+        } catch(_) {}
+      }
+    })();
+
+    // 페이지 이탈 직전 보험
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { saveDataToServer(); }
+    });
+
+    // =============== 실행 ===============
+    const timeline = buildTimeline(DATA_ROWS);
+    TOTAL_TRIALS = DATA_ROWS.length;
+    updateHUD(0);
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>

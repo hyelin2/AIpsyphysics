@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>jsPsych Self-check</title>
+  <link rel="stylesheet" href="lib/jspsych.css">
+  <style>
+    body { background:#b43232; color:#eee; font-family:system-ui; }
+    #jspsych { padding:24px; }
+    .log { background:rgba(0,0,0,.25); padding:8px 12px; margin:8px 0; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div id="jspsych">
+    <!-- 첫 줄은 jsPsych 없이 그냥 DOM으로 직접 써서, 텍스트가 보이는지 확인 -->
+    <div class="log">Plain HTML render OK: 이 문장이 보이면 DOM은 정상입니다.</div>
+  </div>
+
+  <!-- 코어 + 플러그인: 반드시 이 순서, 이 경로 -->
+  <script src="lib/jspsych.js"></script>
+  <script sr
