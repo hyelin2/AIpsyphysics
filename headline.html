@@ -11,7 +11,7 @@
   <script src="lib/plugin-html-keyboard-response.js"></script>
 
   <!-- 데이터(JS에 CSV 내장) -->
-  <script src="Data/headline_dataset.js"></script>
+  <script src="Data/headline_dataset.js?v=1"></script> <!-- ✅ 경로/대소문자 수정 -->
 
   <style>
     :root { color-scheme: dark; }
@@ -23,7 +23,6 @@
     .center { text-align:center; }
     .btn { display:inline-block; padding:10px 14px; border:1px solid #666; border-radius:10px; }
     .small { font-size:13px; color:#aaa; }
-
     #hud-trials {
       position: fixed; right: 14px; bottom: 14px;
       font-size: 12px; color: #9b9b9b; background: rgba(255,255,255,0.03);
@@ -41,12 +40,13 @@
 
   <script>
     // =============== 저장 서버 설정 ===============
-    // Apps Script 웹앱 URL (배포 후 얻은 URL로 교체)
     const SAVE_ENDPOINT_BASE = 'https://script.google.com/macros/s/AKfycbwfMpOM130lgHBL_RbEtIL3ADe8upsce4fodeTl-DYMPaxN1suF8vL1UqVCyHJLu9Lg/exec';
-    // URL 파라미터에도 task 붙여서 e.parameter.task 대응
     const SAVE_ENDPOINT = SAVE_ENDPOINT_BASE + '?task=headline';
 
-    // 참가자 ID 생성/보관
+    // 단 한 번만 업로드하도록 가드
+    let UPLOAD_DONE = false;
+
+    // 참가자 ID
     function getPID() {
       const fromQS = new URLSearchParams(location.search).get('pid');
       if (fromQS) return fromQS;
@@ -59,9 +59,9 @@
     const PARTICIPANT_ID = getPID();
 
     // =============== 실험 파라미터 ===============
-    // MODE = 1  → amb: pos/neg, clear: neutral
-    // MODE = 2  → amb: pos/neg/neutral 균등, clear: neutral
-    const MODE = 2;            // 1 또는 2
+    // MODE = 1 → amb: pos/neg, clear: neutral
+    // MODE = 2 → amb: pos/neg/neutral 균등, clear: neutral
+    const MODE = 2;
     const LEFT_KEY  = 'arrowleft';
     const RIGHT_KEY = 'arrowright';
     const CUE_MS = 700;
@@ -134,11 +134,7 @@
     // =============== jsPsych ===============
     const jsPsych = initJsPsych({
       display_element: 'jspsych',
-      on_finish: async () => {
-        // 서버 업로드 + 로컬 백업
-        await saveDataToServer();
-        try { jsPsych.data.get().localSave('csv', 'headline_results.csv'); } catch(e) {}
-      }
+      on_finish: () => {} // ⛔ 여기서는 저장 안 함 (중복 방지)
     });
     jsPsych.data.addProperties({
       task: 'headline',
@@ -152,7 +148,7 @@
     // =============== 데이터 로드 ===============
     if (!window.HEADLINE_DATA || typeof window.HEADLINE_DATA !== 'string') {
       document.getElementById('jspsych').innerHTML =
-        '<div style="margin-top:20vh;text-align:center;color:#f88;">데이터 파일(data/headline_dataset.js)을 불러오지 못했습니다.</div>';
+        '<div style="margin-top:20vh;text-align:center;color:#f88;">데이터 파일(Data/headline_dataset.js)을 불러오지 못했습니다.</div>';
       throw new Error('HEADLINE_DATA not found');
     }
     const DATA_ROWS = parseCSVStrict(window.HEADLINE_DATA).map(r => ({
@@ -201,7 +197,7 @@
           type: jsPsychHtmlKeyboardResponse,
           stimulus: cueHTML(cueType),
           choices: "NO_KEYS",
-          trial_duration: 700,
+          trial_duration: CUE_MS,
           data: { phase:'cue', trial_index_zero: idx, cue_type: cueType, stimulus_type: stimType },
           on_start: () => updateHUD(idx)
         });
@@ -222,18 +218,14 @@
             cue_type: cueType
           },
           on_finish: (d) => {
-            // 원본 키와 소문자 키 둘 다 확보
             const keyRaw = d.response ?? '';
             const key = String(keyRaw).toLowerCase();
-      
-            d.choice_key   = keyRaw;                       // 예: 'ArrowLeft' 그대로 저장
-            d.choice_label = (key === LEFT_KEY) ? 'neg'    // 소문자로 비교
-                                                : 'pos';
+            d.choice_key   = keyRaw;                    // 'ArrowLeft' 등 원본
+            d.choice_label = (key === LEFT_KEY) ? 'neg' : 'pos';
             d.correct = (stimType === 'pos' || stimType === 'neg')
               ? (d.choice_label === stimType ? 1 : 0)
               : null;
-            d.timestamp = new Date().toISOString();
-            // d.rt는 자동(ms)
+            d.timestamp = new Date().toISOString();     // d.rt(ms)는 jsPsych가 기록
           }
         });
 
@@ -241,13 +233,13 @@
         timeline.push({
           type: jsPsychHtmlKeyboardResponse,
           choices: "NO_KEYS",
-          trial_duration: 300,
+          trial_duration: ITI_MS,
           stimulus: () => "",
           data: { phase:'iti', trial_index_zero: idx }
         });
       });
 
-      // 종료 화면
+      // 종료 화면(여기서만 저장)
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         choices: [' '],
@@ -259,7 +251,7 @@
         `,
         on_finish: async () => {
           updateHUD(TOTAL_TRIALS);
-          await saveDataToServer();
+          await saveDataToServer(); // ✅ 단 한 번만
           try { jsPsych.data.get().localSave('csv', 'headline_results.csv'); } catch(_) {}
         }
       });
@@ -267,9 +259,14 @@
       return timeline;
     }
 
-    // =============== 서버 전송 ===============
+    // =============== 서버 전송 (단 한 번, 시간순 정렬) ===============
     async function saveDataToServer() {
-        const rows = jsPsych.data.get().filter({phase:'choice'}).values().map(d => ({
+      if (UPLOAD_DONE) return true;
+
+      // choice phase만 추출 + trial_index_zero 오름차순 정렬
+      const rows = jsPsych.data.get().filter({phase:'choice'}).values()
+        .sort((a,b) => (a.trial_index_zero ?? 0) - (b.trial_index_zero ?? 0))
+        .map(d => ({
           trial_index_zero: d.trial_index_zero ?? null,
           id: d.id ?? '',
           headline_text: d.headline_text ?? '',
@@ -278,48 +275,62 @@
           target_valence: d.target_valence ?? '',
           cue_type: d.cue_type ?? '',
           choice_label: d.choice_label ?? '',
-          choice_key: d.choice_key ?? '',     
+          choice_key: d.choice_key ?? '',
           rt: d.rt ?? null,
           correct: d.correct
         }));
-      
-        const payload = {
-          task: 'headline',
-          participant_id: PARTICIPANT_ID,
-          meta: { mode: MODE, ua: navigator.userAgent },
-          rows
-        };
-      
-        try {
-          await fetch(SAVE_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' }, // ★ 프리플라이트 회피
-            body: JSON.stringify(payload),
-            mode: 'no-cors',                            // ★ 응답은 못 읽지만 전송은 됨
-            keepalive: true
-          });
-          return true;
-        } catch (e) {
-          localStorage.setItem('headline_pending_upload', JSON.stringify(payload)); // 실패시 대기열
-          return false;
-        }
-      }
-      
 
-    // 숨은 대기열 재전송
+      const payload = {
+        task: 'headline',
+        participant_id: PARTICIPANT_ID,
+        meta: { mode: MODE, ua: navigator.userAgent },
+        rows
+      };
+
+      try {
+        // 우선: sendBeacon (백그라운드 안전 업로드)
+        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain' });
+        if (navigator.sendBeacon && navigator.sendBeacon(SAVE_ENDPOINT, blob)) {
+          UPLOAD_DONE = true;
+          return true;
+        }
+      } catch(_) {}
+
+      try {
+        // 폴백: no-cors + text/plain (프리플라이트 회피)
+        await fetch(SAVE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(payload),
+          mode: 'no-cors',
+          keepalive: true
+        });
+        UPLOAD_DONE = true;
+        return true;
+      } catch (e) {
+        // 최후: 로컬 대기열
+        localStorage.setItem('headline_pending_upload', JSON.stringify(payload));
+        return false;
+      }
+    }
+
+    // 숨은 대기열 재전송 (아직 안 보냈을 때만)
     (async () => {
       const q = localStorage.getItem('headline_pending_upload');
-      if (q) {
+      if (q && !UPLOAD_DONE) {
         try {
-          await fetch(SAVE_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body:q, mode:'cors' });
+          await fetch(SAVE_ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain'}, body:q, mode:'no-cors' });
           localStorage.removeItem('headline_pending_upload');
+          UPLOAD_DONE = true;
         } catch(_) {}
       }
     })();
 
-    // 페이지 이탈 직전 보험
+    // 페이지 이탈 직전 보험 (업로드 전일 때만)
     window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') { saveDataToServer(); }
+      if (!UPLOAD_DONE && document.visibilityState === 'hidden') {
+        saveDataToServer();
+      }
     });
 
     // =============== 실행 ===============

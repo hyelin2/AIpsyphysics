@@ -1,0 +1,51 @@
+"rt","stimulus","response","trial_type","trial_index","time_elapsed","internal_node_id","task","key_left","key_right","mode","participant_id","start_time","phase","trial_index_zero","cue_type","stimulus_type","id","headline_text","topic","target_valence","choice_key","choice_label","correct","timestamp"
+"3854","
+          <div class=""center"" style=""margin-top:14vh;"">
+            <div style=""font-size:28px; margin-bottom:10px;"">과제 설명</div>
+            <div>화면에 제시되는 문장을 보고, 직관적으로 <b>부정/긍정</b>을 분류하세요.</div>
+            <div class=""small"" style=""margin-top:8px;"">← 부정 / → 긍정 (가능한 빠르게!)</div>
+            <div class=""small"" style=""margin-top:8px;"">모든 문장 전에 간단한 안내 화면이 제시됩니다.</div>
+            <div style=""margin-top:18px;""><span class=""btn"">아무 키나 눌러 시작</span></div>
+          </div>
+        ","arrowleft","html-keyboard-response","0","3854","0.0-0.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","","","","","","","","","","","",""
+"null","
+        <div class=""center"" style=""margin-top:22vh;"">
+          <div class=""small"" style=""color:#aaa;"">안내</div>
+          <div style=""font-size:30px; margin-top:8px;"">잠시 후 문장이 나타납니다.</div>
+        </div>
+      ","null","html-keyboard-response","1","4557","0.0-1.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","cue","0","neutral","neg","","","","","","","",""
+"503","
+      <div class=""headline"">클라우드 서비스에서 오류가 발생해 서비스가 중단됐다.</div>
+      <div class=""keys"">빠르게 분류: <b>← 부정</b> / <b>→ 긍정</b></div>
+    ","arrowright","html-keyboard-response","2","5061","0.0-2.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","choice","0","neutral","neg","N056","클라우드 서비스에서 오류가 발생해 서비스가 중단됐다.","기술","-0.82","arrowright","pos","0","2025-10-05T12:06:31.263Z"
+"null","","null","html-keyboard-response","3","5363","0.0-3.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","iti","0","","","","","","","","","",""
+"null","
+        <div class=""center"" style=""margin-top:22vh;"">
+          <div class=""small"" style=""color:#aaa;"">안내</div>
+          <div style=""font-size:30px; margin-top:8px;"">잠시 후 문장이 나타납니다.</div>
+        </div>
+      ","null","html-keyboard-response","4","6066","0.0-4.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","cue","1","neutral","amb","","","","","","","",""
+"401","
+      <div class=""headline"">온라인 수업이 개선됐지만 일부 불편이 남아 있다.</div>
+      <div class=""keys"">빠르게 분류: <b>← 부정</b> / <b>→ 긍정</b></div>
+    ","arrowleft","html-keyboard-response","5","6468","0.0-5.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","choice","1","neutral","amb","A277","온라인 수업이 개선됐지만 일부 불편이 남아 있다.","교육","-0.09","arrowleft","neg","null","2025-10-05T12:06:32.670Z"
+"null","","null","html-keyboard-response","6","6770","0.0-6.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","iti","1","","","","","","","","","",""
+"null","
+          <div class=""center"" style=""margin-top:22vh;"">
+            <div class=""small"" style=""color:#aaa;"">사전 정보</div>
+            <div style=""font-size:30px; margin-top:8px;"">
+              사람들이 보통 이 메시지를 <b>긍정적</b>으로 본다고 합니다.
+            </div>
+          </div>
+        ","null","html-keyboard-response","7","7473","0.0-7.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","cue","2","pos","amb","","","","","","","",""
+"340","
+      <div class=""headline"">신형 장비가 관심을 끌었지만 논란도 함께 제기됐다.</div>
+      <div class=""keys"">빠르게 분류: <b>← 부정</b> / <b>→ 긍정</b></div>
+    ","arrowright","html-keyboard-response","8","7814","0.0-8.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","choice","2","pos","amb","A178","신형 장비가 관심을 끌었지만 논란도 함께 제기됐다.","과학","0.03","arrowright","pos","null","2025-10-05T12:06:34.016Z"
+"null","","null","html-keyboard-response","9","8116","0.0-9.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","iti","2","","","","","","","","","",""
+"1098","
+          <div class=""center"" style=""margin-top:14vh;"">
+            <div style=""font-size:28px; margin-bottom:10px;"">끝!</div>
+            <div class=""small"" style=""margin-top:8px;"">스페이스바를 누르면 결과 저장이 시작됩니다.</div>
+          </div>
+        "," ","html-keyboard-response","10","9215","0.0-10.0","headline","arrowleft","arrowright","2","H5qp1qr1q","2025-10-05T12:06:26.187Z","","","","","","","","","","","",""
